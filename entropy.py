@@ -315,24 +315,19 @@ def minus_one(val):
 
 def solvent_traj(
 	thermo_traj,
-	oxy_type, agbot_id, agtop_id,
-	adjust_ag_index_please=False,
+	oxy_type, ag_type,
 	bound_dist=7, time_interval=2000, bool_polymer=False,
 	temp=413, binding_free_kcal=0, binding_free_sem_kcal=0):
 
-	if bool_polymer:
-		raise NameError('ERROR: Do not support polymer yet!')
-
-	if adjust_ag_index_please:
-		agbot_id = list(map(minus_one, agbot_id))
-		agtop_id = list(map(minus_one, agtop_id))
+	# if bool_polymer:
+	# 	raise NameError('ERROR: Do not support polymer yet!')
 
 	d = {}
 	d['bound_pe'] = []
 	d['free_pe'] = []
 	for f_thermo, f_traj in thermo_traj:
 		loaded = chemfiles_bound_free(f_thermo, f_traj,
-																	oxy_type, agbot_id, agtop_id, 
+																	oxy_type, ag_type,
 																	bound_dist=bound_dist,
 																	time_interval=time_interval, bool_polymer=bool_polymer)
 		d['bound_pe'] = d['bound_pe'] + loaded['bound_pe']
@@ -398,12 +393,12 @@ def pbc_wrap(val, box_size):
 
 def chemfiles_bound_free(
 	f_thermo, f_traj,
-	oxy_type, agbot_id, agtop_id, 
+	oxy_type, ag_type,
 	bound_dist=7,
 	skipns=0, time_interval=2000, bool_polymer=False):
 
-	if bool_polymer:
-		raise NameError('ERROR: Do not support polymer yet!')
+	# if bool_polymer:
+	# 	raise NameError('ERROR: Do not support polymer yet!')
 
 	skipts = int(skipns*1000000./time_interval)
 	data, head = thermo.read_str_array(f_thermo, skipts)
@@ -426,6 +421,7 @@ def chemfiles_bound_free(
 	traj = chemfiles.Trajectory(f_traj)
 	frame = traj.read()
 	oxy_atom = chemfiles.Selection("atoms: name == %s" % oxy_type).evaluate(frame)
+	ag_atom = chemfiles.Selection("atoms: name == %s" % ag_type).evaluate(frame)
 	box_z = frame.cell().lengths()[2]
 
 	oxy_z = []
@@ -439,8 +435,8 @@ def chemfiles_bound_free(
 	else:
 		oxy_z.append( positions[oxy_atom, 2][0] )
 	
-	agbot_z.append( np.min(positions[agbot_id, 2]) )
-	agtop_z.append( np.max(positions[agtop_id, 2]) )
+	agbot_z.append( np.min(positions[ag_atom, 2]) )
+	agtop_z.append( np.max(positions[ag_atom, 2]) )
 
 	for i in range(traj.nsteps()-1):
 		frame = traj.read()
@@ -449,8 +445,8 @@ def chemfiles_bound_free(
 			oxy_z.append( list(positions[oxy_atom, 2]) )
 		else:
 			oxy_z.append( positions[oxy_atom, 2][0] )
-		agbot_z.append( np.min(positions[agbot_id, 2]) )
-		agtop_z.append( np.max(positions[agtop_id, 2]) )
+		agbot_z.append( np.min(positions[ag_atom, 2]) )
+		agtop_z.append( np.max(positions[ag_atom, 2]) )
 
 	oxy_z = oxy_z[skipts:]
 	agbot_z = agbot_z[skipts:]
@@ -469,9 +465,10 @@ def chemfiles_bound_free(
 	
 	# Get bound index
 	if bool_polymer:
-		raise NameError('ERROR: Do not support polymer yet!')
-		# bound_bottom = (oxy_z.min(axis=1) > bound_low) * (oxy_z.max(axis=1) < ag_z.min())
-		# bound_top = (oxy_z.max(axis=1) < bound_high) * (oxy_z.min(axis=1) > ag_z.max())
+		# raise NameError('ERROR: Do not support polymer yet!')
+		oxy_z = np.array(oxy_z)
+		bound_bottom = (oxy_z.min(axis=1) > bound_low) * (oxy_z.max(axis=1) < agbot_z)
+		bound_top = (oxy_z.max(axis=1) < bound_high) * (oxy_z.min(axis=1) > agtop_z)
 	else:
 		bound_bottom = (oxy_z > bound_low) * (oxy_z < agbot_z)
 		bound_top = (oxy_z < bound_high) * (oxy_z > agtop_z)
